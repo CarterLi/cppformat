@@ -44,96 +44,13 @@
 # include <iterator>
 #endif
 
-#ifdef __GNUC__
-# define FMT_GCC_VERSION (__GNUC__ * 100 + __GNUC_MINOR__)
-# define FMT_GCC_EXTENSION __extension__
-# if FMT_GCC_VERSION >= 406
-#  pragma GCC diagnostic push
-// Disable the warning about "long long" which is sometimes reported even
-// when using __extension__.
-#  pragma GCC diagnostic ignored "-Wlong-long"
-// Disable the warning about declaration shadowing because it affects too
-// many valid cases.
-#  pragma GCC diagnostic ignored "-Wshadow"
-# endif
-# if __cplusplus >= 201103L || defined __GXX_EXPERIMENTAL_CXX0X__
-#  define FMT_HAS_GXX_CXX11 1
-# endif
-#else
-# define FMT_GCC_EXTENSION
-#endif
-
-#ifdef __clang__
-# pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
-#endif
-
-#ifdef __GNUC_LIBSTD__
-# define FMT_GNUC_LIBSTD_VERSION (__GNUC_LIBSTD__ * 100 + __GNUC_LIBSTD_MINOR__)
-#endif
-
-#ifdef __has_feature
-# define FMT_HAS_FEATURE(x) __has_feature(x)
-#else
-# define FMT_HAS_FEATURE(x) 0
-#endif
-
-#ifdef __has_builtin
-# define FMT_HAS_BUILTIN(x) __has_builtin(x)
-#else
-# define FMT_HAS_BUILTIN(x) 0
-#endif
-
-#ifdef __has_cpp_attribute
-# define FMT_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
-#else
-# define FMT_HAS_CPP_ATTRIBUTE(x) 0
-#endif
-
-#ifndef FMT_USE_VARIADIC_TEMPLATES
-// Variadic templates are available in GCC since version 4.4
-// (http://gcc.gnu.org/projects/cxx0x.html) and in Visual C++
-// since version 2013.
-# define FMT_USE_VARIADIC_TEMPLATES \
-   (FMT_HAS_FEATURE(cxx_variadic_templates) || \
-       (FMT_GCC_VERSION >= 404 && FMT_HAS_GXX_CXX11) || _MSC_VER >= 1800)
-#endif
-
-#ifndef FMT_USE_RVALUE_REFERENCES
-// Don't use rvalue references when compiling with clang and an old libstdc++
-// as the latter doesn't provide std::move.
-# if defined(FMT_GNUC_LIBSTD_VERSION) && FMT_GNUC_LIBSTD_VERSION <= 402
-#  define FMT_USE_RVALUE_REFERENCES 0
-# else
-#  define FMT_USE_RVALUE_REFERENCES \
-    (FMT_HAS_FEATURE(cxx_rvalue_references) || \
-        (FMT_GCC_VERSION >= 403 && FMT_HAS_GXX_CXX11) || _MSC_VER >= 1600)
-# endif
-#endif
+#include "config.h"
 
 #if FMT_USE_RVALUE_REFERENCES
 # include <utility>  // for std::move
 #endif
 
-// Define FMT_USE_NOEXCEPT to make C++ Format use noexcept (C++11 feature).
-#if FMT_USE_NOEXCEPT || FMT_HAS_FEATURE(cxx_noexcept) || \
-  (FMT_GCC_VERSION >= 408 && FMT_HAS_GXX_CXX11)
-# define FMT_NOEXCEPT noexcept
-#else
-# define FMT_NOEXCEPT throw()
-#endif
-
-// A macro to disallow the copy constructor and operator= functions
-// This should be used in the private: declarations for a class
-#if FMT_USE_DELETED_FUNCTIONS || FMT_HAS_FEATURE(cxx_deleted_functions) || \
-  (FMT_GCC_VERSION >= 404 && FMT_HAS_GXX_CXX11) || _MSC_VER >= 1800
-# define FMT_DISALLOW_COPY_AND_ASSIGN(TypeName) \
-    TypeName(const TypeName&) = delete; \
-    TypeName& operator=(const TypeName&) = delete
-#else
-# define FMT_DISALLOW_COPY_AND_ASSIGN(TypeName) \
-    TypeName(const TypeName&); \
-    TypeName& operator=(const TypeName&)
-#endif
+#include "string_ref.h"
 
 namespace fmt {
 
@@ -157,84 +74,6 @@ class BasicFormatter;
 
 template <typename Char, typename T>
 void format(BasicFormatter<Char> &f, const Char *&format_str, const T &value);
-
-/**
-  \rst
-  A string reference. It can be constructed from a C string or
-  ``std::string``.
-  
-  You can use one of the following typedefs for common character types:
-
-  +------------+-------------------------+
-  | Type       | Definition              |
-  +============+=========================+
-  | StringRef  | BasicStringRef<char>    |
-  +------------+-------------------------+
-  | WStringRef | BasicStringRef<wchar_t> |
-  +------------+-------------------------+
-
-  This class is most useful as a parameter type to allow passing
-  different types of strings to a function, for example::
-
-    template <typename... Args>
-    std::string format(StringRef format_str, const Args & ... args);
-
-    format("{}", 42);
-    format(std::string("{}"), 42);
-  \endrst
- */
-template <typename Char>
-class BasicStringRef {
- private:
-  const Char *data_;
-  std::size_t size_;
-
- public:
-  /**
-    Constructs a string reference object from a C string and a size.
-   */
-  BasicStringRef(const Char *s, std::size_t size) : data_(s), size_(size) {}
-
-  /**
-    Constructs a string reference object from a C string computing
-    the size with ``std::char_traits<Char>::length``.
-   */
-  BasicStringRef(const Char *s)
-    : data_(s), size_(std::char_traits<Char>::length(s)) {}
-
-  /**
-    Constructs a string reference from an `std::string` object.
-   */
-  BasicStringRef(const std::basic_string<Char> &s)
-  : data_(s.c_str()), size_(s.size()) {}
-
-  /**
-    Converts a string reference to an `std::string` object.
-   */
-  operator std::basic_string<Char>() const {
-    return std::basic_string<Char>(data_, size());
-  }
-
-  /**
-    Returns the pointer to a C string.
-   */
-  const Char *c_str() const { return data_; }
-
-  /**
-    Returns the string size.
-   */
-  std::size_t size() const { return size_; }
-
-  friend bool operator==(BasicStringRef lhs, BasicStringRef rhs) {
-    return lhs.data_ == rhs.data_;
-  }
-  friend bool operator!=(BasicStringRef lhs, BasicStringRef rhs) {
-    return lhs.data_ != rhs.data_;
-  }
-};
-
-typedef BasicStringRef<char> StringRef;
-typedef BasicStringRef<wchar_t> WStringRef;
 
 /**
   A formatting error such as invalid format string.

@@ -44,35 +44,6 @@
 
 using fmt::internal::Arg;
 
-// Check if exceptions are disabled.
-#if __GNUC__ && !__EXCEPTIONS
-# define FMT_EXCEPTIONS 0
-#endif
-#if _MSC_VER && !_HAS_EXCEPTIONS
-# define FMT_EXCEPTIONS 0
-#endif
-#ifndef FMT_EXCEPTIONS
-# define FMT_EXCEPTIONS 1
-#endif
-
-#if FMT_EXCEPTIONS
-# define FMT_TRY try
-# define FMT_CATCH(x) catch (x)
-#else
-# define FMT_TRY if (true)
-# define FMT_CATCH(x) if (false)
-#endif
-
-#ifndef FMT_THROW
-# if FMT_EXCEPTIONS
-#  define FMT_THROW(x) throw x
-#  define FMT_RETURN_AFTER_THROW(x)
-# else
-#  define FMT_THROW(x) assert(false)
-#  define FMT_RETURN_AFTER_THROW(x) return x
-# endif
-#endif
-
 #ifdef FMT_HEADER_ONLY
 # define FMT_FUNC inline
 #else
@@ -264,9 +235,9 @@ class WidthHandler : public fmt::internal::ArgVisitor<WidthHandler, unsigned> {
  public:
   explicit WidthHandler(fmt::FormatSpec &spec) : spec_(spec) {}
 
+  FMT_NORETURN
   unsigned visit_unhandled_arg() {
     FMT_THROW(fmt::FormatError("width is not integer"));
-    FMT_RETURN_AFTER_THROW(0);
   }
 
   template <typename T>
@@ -286,9 +257,9 @@ class WidthHandler : public fmt::internal::ArgVisitor<WidthHandler, unsigned> {
 class PrecisionHandler :
     public fmt::internal::ArgVisitor<PrecisionHandler, int> {
  public:
+  FMT_NORETURN
   unsigned visit_unhandled_arg() {
     FMT_THROW(fmt::FormatError("precision is not integer"));
-    FMT_RETURN_AFTER_THROW(0);
   }
 
   template <typename T>
