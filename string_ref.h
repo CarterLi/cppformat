@@ -5,6 +5,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <cstddef>
 
 #include "config.h"
 
@@ -67,8 +68,8 @@ class BasicStringRef {
   /**
     Constructs a string reference object from a C string and a size.
    */
-  BasicStringRef(const Char *s, size_type size) FMT_NOEXCEPT
-    : data_(s), size_(size) {
+  BasicStringRef(const Char *s, size_type len) FMT_NOEXCEPT
+    : data_(s), size_(len) {
       assert(s && "s should not be null");
     }
 

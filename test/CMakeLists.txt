@@ -14,6 +14,7 @@ function(add_fmt_test name)
   add_test(${name} ${name})
 endfunction()
 
+add_fmt_test(stringref-test)
 add_fmt_test(gtest-extra-test)
 add_fmt_test(format-test)
 add_fmt_test(format-impl-test CUSTOM_LINK)

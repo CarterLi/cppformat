@@ -1258,19 +1258,6 @@ TEST(FormatterTest, FormatExamples) {
   }, error_code, "Cannot open file 'nonexistent'");
 }
 
-TEST(StringRefTest, Ctor) {
-  EXPECT_STREQ("abc", StringRef("abc").c_str());
-  EXPECT_EQ(3u, StringRef("abc").size());
-
-  EXPECT_STREQ("defg", StringRef(std::string("defg")).c_str());
-  EXPECT_EQ(4u, StringRef(std::string("defg")).size());
-}
-
-TEST(StringRefTest, ConvertToString) {
-  std::string s = StringRef("abc");
-  EXPECT_EQ("abc", s);
-}
-
 TEST(FormatterTest, Examples) {
   EXPECT_EQ("First, thou shalt count to three",
       format("First, thou shalt count to {0}", "three"));

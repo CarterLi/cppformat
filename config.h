@@ -11,10 +11,6 @@
 # define FMT_GCC_EXTENSION
 #endif
 
-#ifdef __clang__
-# pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
-#endif
-
 #ifdef __GNUC_LIBSTD__
 # define FMT_GNUC_LIBSTD_VERSION (__GNUC_LIBSTD__ * 100 + __GNUC_LIBSTD_MINOR__)
 #endif

@@ -54,6 +54,20 @@
 
 namespace fmt {
 
+#ifdef __clang__
+# pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
+#endif
+
+#if FMT_GCC_VERSION >= 406
+# pragma GCC diagnostic push
+// Disable the warning about "long long" which is sometimes reported even
+// when using __extension__.
+# pragma GCC diagnostic ignored "-Wlong-long"
+// Disable the warning about declaration shadowing because it affects too
+// many valid cases.
+# pragma GCC diagnostic ignored "-Wshadow"
+#endif
+
 // Fix the warning about long long on older versions of GCC
 // that don't support the diagnostic pragma.
 FMT_GCC_EXTENSION typedef long long LongLong;
@@ -551,13 +565,13 @@ class MakeValue : public Value {
   MakeValue(T *value);
 
   void set_string(StringRef str) {
-    string.value = str.c_str();
+    string.value = str.data();
     string.size = str.size();
   }
 
   void set_string(WStringRef str) {
     CharTraits<Char>::convert(wchar_t());
-    wstring.value = str.c_str();
+    wstring.value = str.data();
     wstring.size = str.size();
   }
 
