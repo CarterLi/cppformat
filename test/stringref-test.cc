@@ -81,13 +81,12 @@ TEST(StringRefTest, IndexWithAt) {
   EXPECT_EQ('5', sref.at(1));
   EXPECT_EQ('6', sref.at(2));
 
-  // FIXME: This should work
-  //try {
-  //  sref.at(3);
-  //  FAIL();
-  //} catch (std::out_of_range& e) {
-  //  EXPECT_STREQ("BasicStringRef::at()", e.what());
-  //}
+  try {
+    sref.at(3);
+    FAIL();
+  } catch (std::out_of_range& e) {
+    EXPECT_STREQ("BasicStringRef::at()", e.what());
+  }
 }
 
 TEST(StringRefTest, EmptyString) {

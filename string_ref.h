@@ -37,14 +37,6 @@ namespace fmt {
   \endrst
  */
 
-#if FMT_USE_STD_EXPERIMENTAL_STRING_VIEW \
-    && __cplusplus >= 201405L && __has_include(<experimental/string_view>)
-
-template <typename Char>
-using BasicStringRef = std::experimental::string_view<Char>;
-
-#else
-
 template <typename Char>
 class BasicStringRef {
  public:
@@ -133,7 +125,7 @@ class BasicStringRef {
     return data()[pos];
   }
 
-  const_reference at(size_type pos) const FMT_NOEXCEPT {
+  const_reference at(size_type pos) const {
     if (pos >= size()) {
       FMT_THROW(std::out_of_range("BasicStringRef::at()"));
     }
@@ -161,8 +153,6 @@ class BasicStringRef {
     return !(lhs == rhs);
   }
 };
-
-#endif
 
 typedef BasicStringRef<char> StringRef;
 typedef BasicStringRef<wchar_t> WStringRef;

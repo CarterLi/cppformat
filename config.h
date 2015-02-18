@@ -103,7 +103,7 @@
 # define FMT_DEPRECATED(msg) __attribute__((__deprecated__(msg)))
 #elif defined _MSC_VER
 # define FMT_DEPRECATED(msg) __declspec(deprecated(msg))
-#elif __cplusplus >= 201405L
+#elif __cplusplus >= 201402L
 # define FMT_DEPRECATED(msg) [[deprecated(msg)]]
 #else
 # define FMT_DEPRECATED(msg)
