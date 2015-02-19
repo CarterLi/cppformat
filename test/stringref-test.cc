@@ -3,7 +3,7 @@
 
 #include "gmock/gmock.h"
 
-#include "string_ref.h"
+#include "format.h"
 
 using fmt::StringRef;
 

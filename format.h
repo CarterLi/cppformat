@@ -39,20 +39,134 @@
 #include <stdexcept>
 #include <string>
 #include <sstream>
+#include <iterator>
 
 #if _SECURE_SCL
 # include <iterator>
 #endif
 
-#include "config.h"
+
+#ifdef __GNUC__
+# define FMT_GCC_VERSION (__GNUC__ * 100 + __GNUC_MINOR__)
+# define FMT_GCC_EXTENSION __extension__
+# if __cplusplus >= 201103L || defined __GXX_EXPERIMENTAL_CXX0X__
+#  define FMT_HAS_GXX_CXX11 1
+# endif
+#else
+# define FMT_GCC_EXTENSION
+#endif
+
+#ifdef __GNUC_LIBSTD__
+# define FMT_GNUC_LIBSTD_VERSION (__GNUC_LIBSTD__ * 100 + __GNUC_LIBSTD_MINOR__)
+#endif
+
+#ifdef __has_feature
+# define FMT_HAS_FEATURE(x) __has_feature(x)
+#else
+# define FMT_HAS_FEATURE(x) 0
+#endif
+
+#ifdef __has_builtin
+# define FMT_HAS_BUILTIN(x) __has_builtin(x)
+#else
+# define FMT_HAS_BUILTIN(x) 0
+#endif
+
+#ifdef __has_cpp_attribute
+# define FMT_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
+#else
+# define FMT_HAS_CPP_ATTRIBUTE(x) 0
+#endif
+
+#ifndef FMT_USE_VARIADIC_TEMPLATES
+// Variadic templates are available in GCC since version 4.4
+// (http://gcc.gnu.org/projects/cxx0x.html) and in Visual C++
+// since version 2013.
+# define FMT_USE_VARIADIC_TEMPLATES \
+   (FMT_HAS_FEATURE(cxx_variadic_templates) || \
+       (FMT_GCC_VERSION >= 404 && FMT_HAS_GXX_CXX11) || _MSC_VER >= 1800)
+#endif
+
+#ifndef FMT_USE_RVALUE_REFERENCES
+// Don't use rvalue references when compiling with clang and an old libstdc++
+// as the latter doesn't provide std::move.
+# if defined(FMT_GNUC_LIBSTD_VERSION) && FMT_GNUC_LIBSTD_VERSION <= 402
+#  define FMT_USE_RVALUE_REFERENCES 0
+# else
+#  define FMT_USE_RVALUE_REFERENCES \
+    (FMT_HAS_FEATURE(cxx_rvalue_references) || \
+        (FMT_GCC_VERSION >= 403 && FMT_HAS_GXX_CXX11) || _MSC_VER >= 1600)
+# endif
+#endif
+
+
+// Define FMT_USE_NOEXCEPT to make C++ Format use noexcept (C++11 feature).
+#if FMT_USE_NOEXCEPT || FMT_HAS_FEATURE(cxx_noexcept) || \
+  (FMT_GCC_VERSION >= 408 && FMT_HAS_GXX_CXX11)
+# define FMT_NOEXCEPT noexcept
+#else
+# define FMT_NOEXCEPT throw()
+#endif
+
+// Check if exceptions are disabled.
+#if (__GNUC__ && !__EXCEPTIONS) || (_MSC_VER && !_HAS_EXCEPTIONS)
+# define FMT_EXCEPTIONS 0
+#else
+# define FMT_EXCEPTIONS 1
+#endif
+
+#if FMT_EXCEPTIONS
+# define FMT_TRY try
+# define FMT_CATCH(x) catch (x)
+#else
+# define FMT_TRY if (true)
+# define FMT_CATCH(x) if (false)
+#endif
+
+#ifndef FMT_THROW
+# if FMT_EXCEPTIONS
+#  define FMT_THROW(x) throw x
+# else
+#  define FMT_THROW(x) std::terminate()
+# endif
+#endif
+
+// A macro to disallow the copy constructor and operator= functions
+// This should be used in the private: declarations for a class
+#if FMT_USE_DELETED_FUNCTIONS || FMT_HAS_FEATURE(cxx_deleted_functions) || \
+  (FMT_GCC_VERSION >= 404 && FMT_HAS_GXX_CXX11) || _MSC_VER >= 1800
+# define FMT_DISALLOW_COPY_AND_ASSIGN(TypeName) \
+    TypeName(const TypeName&) = delete; \
+    TypeName& operator=(const TypeName&) = delete
+#else
+# define FMT_DISALLOW_COPY_AND_ASSIGN(TypeName) \
+    TypeName(const TypeName&); \
+    TypeName& operator=(const TypeName&)
+#endif
+
+#if defined __GNUC__
+# define FMT_DEPRECATED(msg) __attribute__((__deprecated__(msg)))
+#elif defined _MSC_VER
+# define FMT_DEPRECATED(msg) __declspec(deprecated(msg))
+#elif __cplusplus >= 201402L
+# define FMT_DEPRECATED(msg) [[deprecated(msg)]]
+#else
+# define FMT_DEPRECATED(msg)
+#endif
+
+#if defined __GNUC__
+# define FMT_NORETURN __attribute__((__noreturn__))
+#elif defined _MSC_VER
+# define FMT_NORETURN __declspec(noreturn)
+#elif __cplusplus >= 201103L
+# define FMT_NORETURN [[noreturn]]
+#else
+# define FMT_NORETURN
+#endif
 
 #if FMT_USE_RVALUE_REFERENCES
 # include <utility>  // for std::move
 #endif
-
-#include "string_ref.h"
-
-namespace fmt {
 
 #ifdef __clang__
 # pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
@@ -67,6 +181,154 @@ namespace fmt {
 // many valid cases.
 # pragma GCC diagnostic ignored "-Wshadow"
 #endif
+
+namespace fmt {
+
+/**
+  \rst
+  A string reference. It can be constructed from a C string or
+  ``std::string``.
+  
+  You can use one of the following typedefs for common character types:
+
+  +------------+-------------------------+
+  | Type       | Definition              |
+  +============+=========================+
+  | StringRef  | BasicStringRef<char>    |
+  +------------+-------------------------+
+  | WStringRef | BasicStringRef<wchar_t> |
+  +------------+-------------------------+
+
+  This class is most useful as a parameter type to allow passing
+  different types of strings to a function, for example::
+
+    template <typename... Args>
+    std::string format(StringRef format_str, const Args & ... args);
+
+    format("{}", 42);
+    format(std::string("{}"), 42);
+  \endrst
+ */
+
+template <typename Char>
+class BasicStringRef {
+ public:
+  typedef Char                                     value_type;
+  typedef const Char*                              pointer;
+  typedef const Char*                              const_pointer;
+  typedef const Char&                              reference;
+  typedef const Char&                              const_reference;
+  typedef const_pointer                            const_iterator;
+  typedef const_iterator                           iterator;
+  typedef std::reverse_iterator<const_iterator>    const_reverse_iterator;
+  typedef const_reverse_iterator                   reverse_iterator;
+  typedef size_t                                   size_type;
+  typedef ptrdiff_t                                difference_type;
+
+ private:
+  const Char * data_;
+  std::size_t size_;
+
+ public:
+  /**
+    Constructs a string reference object from a C string and a size.
+   */
+  BasicStringRef(const Char *s, size_type len) FMT_NOEXCEPT
+    : data_(s), size_(len) {
+      assert(s && "s should not be null");
+    }
+
+  /**
+    Constructs a string reference object from a C string computing
+    the size with ``std::char_traits<Char>::length``.
+   */
+  BasicStringRef(const Char *s) FMT_NOEXCEPT
+    : data_(s), size_(std::char_traits<Char>::length(s)) {
+      assert(s && "s should not be null");
+    }
+
+  /**
+    Constructs a string reference from an `std::string` object.
+   */
+  BasicStringRef(const std::basic_string<Char> &s) FMT_NOEXCEPT
+  : data_(s.data()), size_(s.size()) {}
+
+  /**
+    Converts a string reference to an `std::string` object.
+   */
+  operator std::basic_string<Char>() const {
+    return std::basic_string<Char>(data(), size());
+  }
+
+  /**
+    Returns the pointer to a C string.
+   */
+  FMT_DEPRECATED("Use data() instead")
+  const Char *c_str() const FMT_NOEXCEPT { return data_; }
+
+  /**
+    Returns the pointer to the referenced string.
+    Note: may return a pointer that is not NUL-terminated
+   */
+  const Char *data() const FMT_NOEXCEPT { return data_; }
+
+  /**
+    Returns the string size.
+   */
+  size_type size() const FMT_NOEXCEPT { return size_; }
+
+  /**
+    Returns the string size.
+   */
+  size_type length() const FMT_NOEXCEPT { return size_; }
+
+  const_iterator begin() const FMT_NOEXCEPT { return cbegin(); }
+  const_iterator end() const FMT_NOEXCEPT { return cend(); }
+
+  const_iterator cbegin() const FMT_NOEXCEPT { return data(); }
+  const_iterator cend() const FMT_NOEXCEPT { return data() + size(); }
+
+  const_reverse_iterator rbegin() const FMT_NOEXCEPT { return const_reverse_iterator(cend()); }
+  const_reverse_iterator rend() const FMT_NOEXCEPT { return const_reverse_iterator(cbegin()); }
+  const_reverse_iterator crbegin() const FMT_NOEXCEPT { return rbegin(); }
+  const_reverse_iterator crend() const FMT_NOEXCEPT { return rend(); }
+
+  const_reference operator[](size_type pos) const FMT_NOEXCEPT {
+    assert(pos < size());
+    return data()[pos];
+  }
+
+  const_reference at(size_type pos) const {
+    if (pos >= size()) {
+      FMT_THROW(std::out_of_range("BasicStringRef::at()"));
+    }
+    return operator[](pos);
+  }
+
+  /**
+    Returns whether the string is empty
+   */
+  bool empty() const FMT_NOEXCEPT { return size() == 0; }
+  
+  int compare(BasicStringRef bsr) const FMT_NOEXCEPT {
+    size_type rlen = std::min(size(), bsr.size());
+    int result = std::char_traits<Char>::compare(data(), bsr.data(), rlen);
+    if (result == 0) {
+      result = size() - bsr.size();
+    }
+    return result;
+  }
+
+  friend bool operator==(BasicStringRef lhs, BasicStringRef rhs) FMT_NOEXCEPT {
+    return lhs.size() == rhs.size() && lhs.compare(rhs) == 0;
+  }
+  friend bool operator!=(BasicStringRef lhs, BasicStringRef rhs) FMT_NOEXCEPT {
+    return !(lhs == rhs);
+  }
+};
+
+typedef BasicStringRef<char> StringRef;
+typedef BasicStringRef<wchar_t> WStringRef;
 
 // Fix the warning about long long on older versions of GCC
 // that don't support the diagnostic pragma.
@@ -94,8 +356,8 @@ void format(BasicFormatter<Char> &f, const Char *&format_str, const T &value);
 */
 class FormatError : public std::runtime_error {
 public:
-  explicit FormatError(StringRef message)
-  : std::runtime_error(message.c_str()) {}
+  explicit FormatError(const std::string& message)
+    : std::runtime_error(message) {}
 };
 
 namespace internal {
